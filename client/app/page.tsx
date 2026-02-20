@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart3, BookOpen, CreditCard, Star, Shield, Smartphone, Settings, HelpCircle, LogOut, Menu, Bell, User, X } from 'lucide-react';
 import { OverviewPage } from '@/components/pages/overview-page';
 import { CoursesPage } from '@/components/pages/courses-page';
@@ -10,12 +10,38 @@ import { SecurityPage } from '@/components/pages/security-page';
 import { SessionsPage } from '@/components/pages/sessions-page';
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/sonner';
+import { useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api-client';
 
 type Page = 'overview' | 'courses' | 'orders' | 'reviews' | 'security' | 'sessions';
 
 export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState<Page>('overview');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await apiClient.auth.getProfile();
+        setUser(response.data.data);
+      } catch (error) {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;';
+    router.refresh();
+  };
 
   const navItems = [
     { id: 'overview' as Page, icon: BarChart3, label: 'Overview' },
@@ -38,16 +64,25 @@ export default function Dashboard() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">Loading...</span>
+      </div>
+    );
+  }
+
   const SidebarContent = () => (
     <>
       <div className="p-6 border-b" style={{ borderColor: '#ecf0f1' }}>
         <div className="flex items-center gap-3">
           <div className="size-10 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
-            G
+            {user?.name?.charAt(0) || 'G'}
           </div>
           <div>
-            <h1 className="text-lg text-slate-900 font-bold">GenoSpark</h1>
-            <p className="text-xs text-gray-500">Learning Platform</p>
+            <h1 className="text-lg text-slate-900 font-bold">{user?.name || 'User'}</h1>
+            <p className="text-xs text-gray-500">{user?.email || 'User Profile'}</p>
           </div>
         </div>
       </div>
@@ -85,7 +120,11 @@ export default function Dashboard() {
           <HelpCircle className="size-5 mr-3" />
           Help
         </Button>
-        <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50">
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={handleLogout}
+        >
           <LogOut className="size-5 mr-3" />
           Logout
         </Button>

@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -25,6 +25,7 @@ model User {
   reviews       Review[]
   sessions      Session[]
   activities    Activity[]
+  dashboardData DashboardData[]
   
   @@map("users")
 }
@@ -32,10 +33,13 @@ model User {
 model Course {
   id            String    @id @default(cuid())
   title         String
-  description   String?   @db.Text
+  description   String?
   thumbnail     String?
   duration      Int?      // in hours
   price         Float
+  category      String?
+  level         String?
+  isPublished   Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
@@ -98,7 +102,7 @@ model Review {
   userId        String
   courseId      String
   rating        Int       // 1-5
-  content       String?   @db.Text
+  content       String?
   status        String    @default("published") // published, pending, rejected
   helpfulCount  Int       @default(0)
   replyCount    Int       @default(0)
@@ -108,6 +112,7 @@ model Review {
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   
+  @@unique([userId, courseId])
   @@map("reviews")
 }
 
@@ -132,11 +137,26 @@ model Activity {
   userId        String
   type          String    // course_enrolled, course_completed, order_placed, review_submitted, login, etc.
   description   String
-  metadata      Json?     // additional data
+  metadata      String?   // additional data (JSON stored as string)
   isRead        Boolean   @default(false)
   createdAt     DateTime  @default(now())
   
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@map("activities")
+}
+
+model DashboardData {
+  id            String    @id @default(cuid())
+  userId        String?
+  title         String
+  value         String
+  type          String    // metric, chart, stat, etc.
+  period        String?   // daily, weekly, monthly, yearly
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@map("dashboard_data")
 }

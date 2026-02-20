@@ -10,8 +10,16 @@ const api: AxiosInstance = axios.create({
 });
 
 // Add token to requests
-api.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+api.interceptors.request.use((config: any) => {
+  // Get token from localStorage (fallback) or try to get from cookie
+  let token;
+  if (typeof window !== 'undefined') {
+    token = localStorage.getItem('token');
+  } else {
+    // For server-side, we'll rely on the cookie that Next.js will send automatically
+    token = null;
+  }
+  
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -20,12 +28,24 @@ api.interceptors.request.use((config) => {
 
 // Handle responses
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  (response: any) => {
+    // If we received a token in the response, store it
+    if (response.config.url?.includes('/auth/') && response.data?.data?.token) {
+      const token = response.data.data.token;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('token', token);
+        // Also set a cookie for the middleware (this won't work on the server, but will on the client)
+        document.cookie = `auth_token=${token}; path=/;`;
+      }
+    }
+    return response;
+  },
+  (error: any) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
-        window.location.href = '/auth/login';
+        // Remove the auth cookie as well
+        document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;';
       }
     }
     return Promise.reject(error);
@@ -90,6 +110,12 @@ export const apiClient = {
     getAll: (params?: any) => api.get('/sessions/all', { params }),
     endSession: (sessionId: string) => api.delete(`/sessions/${sessionId}`),
     endAllSessions: () => api.post('/sessions/logout-all'),
+  },
+
+  // Dashboard endpoints
+  dashboard: {
+    getData: () => api.get('/dashboard/data'),
+    getStats: () => api.get('/dashboard/stats'),
   },
 };
 

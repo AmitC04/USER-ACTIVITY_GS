@@ -1,98 +1,110 @@
-import { useState } from 'react';
+'use client';
+
+import { useState, useEffect } from 'react';
 import { CourseCard } from '@/components/course-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Grid3x3, List, BookOpen } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import { toast } from 'sonner';
+
+interface Course {
+  id: string;
+  title: string;
+  thumbnail?: string;
+  progress: number;
+  enrolledDate: string;
+  status: 'Active' | 'Completed' | 'Expired';
+  expiryDate?: string;
+}
 
 export function CoursesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [courses, setCourses] = useState<{ active: Course[], completed: Course[], expired: Course[] }>({ 
+    active: [], 
+    completed: [], 
+    expired: [] 
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const courses = {
-    active: [
-      {
-        title: 'AWS Solutions Architect Associate',
-        thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400',
-        progress: 65,
-        enrolledDate: 'Jan 10, 2026',
-        status: 'Active' as const,
-        expiryDate: 'Jul 10, 2026',
-      },
-      {
-        title: 'Azure Fundamentals',
-        thumbnail: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=400',
-        progress: 42,
-        enrolledDate: 'Jan 5, 2026',
-        status: 'Active' as const,
-        expiryDate: 'Jul 5, 2026',
-      },
-      {
-        title: 'Google Cloud Professional',
-        thumbnail: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400',
-        progress: 28,
-        enrolledDate: 'Dec 28, 2025',
-        status: 'Active' as const,
-        expiryDate: 'Jun 28, 2026',
-      },
-      {
-        title: 'Kubernetes Administrator',
-        thumbnail: 'https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?w=400',
-        progress: 85,
-        enrolledDate: 'Dec 20, 2025',
-        status: 'Active' as const,
-        expiryDate: 'Jun 20, 2026',
-      },
-      {
-        title: 'DevOps Foundation',
-        thumbnail: 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=400',
-        progress: 15,
-        enrolledDate: 'Jan 15, 2026',
-        status: 'Active' as const,
-        expiryDate: 'Jul 15, 2026',
-      },
-    ],
-    completed: [
-      {
-        title: 'Docker Fundamentals',
-        thumbnail: 'https://images.unsplash.com/photo-1605745341112-85968b19335b?w=400',
-        progress: 100,
-        enrolledDate: 'Nov 1, 2025',
-        status: 'Completed' as const,
-      },
-      {
-        title: 'Linux System Administration',
-        thumbnail: 'https://images.unsplash.com/photo-1629654297299-c8506221ca97?w=400',
-        progress: 100,
-        enrolledDate: 'Oct 15, 2025',
-        status: 'Completed' as const,
-      },
-      {
-        title: 'Python for DevOps',
-        thumbnail: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=400',
-        progress: 100,
-        enrolledDate: 'Sep 20, 2025',
-        status: 'Completed' as const,
-      },
-    ],
-    expired: [
-      {
-        title: 'Jenkins CI/CD',
-        thumbnail: 'https://images.unsplash.com/photo-1556075798-4825dfaaf498?w=400',
-        progress: 72,
-        enrolledDate: 'Jun 1, 2025',
-        status: 'Expired' as const,
-        expiryDate: 'Dec 1, 2025',
-      },
-      {
-        title: 'Terraform Infrastructure',
-        thumbnail: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400',
-        progress: 58,
-        enrolledDate: 'May 15, 2025',
-        status: 'Expired' as const,
-        expiryDate: 'Nov 15, 2025',
-      },
-    ],
-  };
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.enrollments.getAll({ status: 'all' });
+        const rawData = response.data.data;
+        const enrollments = Array.isArray(rawData) ? rawData : (rawData?.enrollments || []);
+        
+        // Transform the enrollment data to match our expected course structure
+        const transformedCourses = {
+          active: enrollments.filter((enrollment: any) => 
+            enrollment.status === 'active' || enrollment.status === 'in_progress'
+          ).map((enrollment: any) => ({
+            id: enrollment.id,
+            title: enrollment.course.title,
+            thumbnail: enrollment.course.thumbnail || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400',
+            progress: enrollment.progress,
+            enrolledDate: new Date(enrollment.enrolledAt).toLocaleDateString(),
+            status: 'Active' as const,
+            expiryDate: enrollment.expiresAt ? new Date(enrollment.expiresAt).toLocaleDateString() : undefined
+          })),
+          
+          completed: enrollments.filter((enrollment: any) => 
+            enrollment.status === 'completed'
+          ).map((enrollment: any) => ({
+            id: enrollment.id,
+            title: enrollment.course.title,
+            thumbnail: enrollment.course.thumbnail || 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=400',
+            progress: enrollment.progress,
+            enrolledDate: new Date(enrollment.enrolledAt).toLocaleDateString(),
+            status: 'Completed' as const
+          })),
+          
+          expired: enrollments.filter((enrollment: any) => 
+            enrollment.status === 'expired'
+          ).map((enrollment: any) => ({
+            id: enrollment.id,
+            title: enrollment.course.title,
+            thumbnail: enrollment.course.thumbnail || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400',
+            progress: enrollment.progress,
+            enrolledDate: new Date(enrollment.enrolledAt).toLocaleDateString(),
+            status: 'Expired' as const,
+            expiryDate: enrollment.expiresAt ? new Date(enrollment.expiresAt).toLocaleDateString() : undefined
+          }))
+        };
+        
+        setCourses(transformedCourses);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching courses:', err);
+        setError('Failed to load courses. Please try again later.');
+        toast.error('Failed to load courses');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCourses();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">Loading courses...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        {error}
+      </div>
+    );
+  }
 
   const allCourses = [...courses.active, ...courses.completed, ...courses.expired];
 
@@ -147,33 +159,63 @@ export function CoursesPage() {
 
         <TabsContent value="all">
           <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
-            {allCourses.map((course, index) => (
-              <CourseCard key={index} {...course} />
-            ))}
+            {allCourses.length > 0 ? (
+              allCourses.map((course) => (
+                <CourseCard key={course.id} {...course} />
+              ))
+            ) : (
+              <div className="text-center py-16 bg-white rounded-xl col-span-full">
+                <BookOpen className="size-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-xl mb-2" style={{ color: '#2c3e50', fontWeight: 600 }}>
+                  No Courses Yet
+                </h3>
+                <p className="text-gray-600 mb-6">Enroll in a course to get started!</p>
+              </div>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="active">
           <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
-            {courses.active.map((course, index) => (
-              <CourseCard key={index} {...course} />
-            ))}
+            {courses.active.length > 0 ? (
+              courses.active.map((course) => (
+                <CourseCard key={course.id} {...course} />
+              ))
+            ) : (
+              <div className="text-center py-16 bg-white rounded-xl">
+                <BookOpen className="size-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-xl mb-2" style={{ color: '#2c3e50', fontWeight: 600 }}>
+                  No Active Courses
+                </h3>
+                <p className="text-gray-600 mb-6">Consider enrolling in a new course!</p>
+              </div>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="completed">
           <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
-            {courses.completed.map((course, index) => (
-              <CourseCard key={index} {...course} />
-            ))}
+            {courses.completed.length > 0 ? (
+              courses.completed.map((course) => (
+                <CourseCard key={course.id} {...course} />
+              ))
+            ) : (
+              <div className="text-center py-16 bg-white rounded-xl">
+                <BookOpen className="size-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-xl mb-2" style={{ color: '#2c3e50', fontWeight: 600 }}>
+                  No Completed Courses
+                </h3>
+                <p className="text-gray-600 mb-6">Keep going, you're making progress!</p>
+              </div>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="expired">
           {courses.expired.length > 0 ? (
             <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
-              {courses.expired.map((course, index) => (
-                <CourseCard key={index} {...course} />
+              {courses.expired.map((course) => (
+                <CourseCard key={course.id} {...course} />
               ))}
             </div>
           ) : (

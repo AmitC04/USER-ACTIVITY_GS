@@ -14,13 +14,14 @@ import orderRoutes from './routes/orderRoutes';
 import reviewRoutes from './routes/reviewRoutes';
 import activityRoutes from './routes/activityRoutes';
 import sessionRoutes from './routes/sessionRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
 
 const app: Express = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: [process.env.CLIENT_URL || 'http://localhost:3000', 'http://localhost:3001'],
   credentials: true,
 }));
 
@@ -41,6 +42,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
